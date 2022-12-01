@@ -1,3 +1,5 @@
+import pickle
+
 import tensorflow as tf
 
 import numpy as np
@@ -45,15 +47,9 @@ def clean(fn):
 
 
 def get_text():
-    t = open("jw.txt", 'rb').read().decode('utf-8')
+    t = open("lyrics.txt", 'rb').read().decode('utf-8')
     print(f'Length of text: {len(t)}')
     return t
-
-
-def make_vocab(t):
-    v = sorted(set(t))
-    print(f'{len(v)} unique characters')
-    return v
 
 
 def text_from_ids(ids1):
@@ -67,9 +63,11 @@ def split_input_target(sequence):
 
 
 text = get_text()
-vocab = make_vocab(text)
 
 chars = tf.strings.unicode_split(text, 'UTF-8')
+with open("test.pickle", "rb") as infile:
+    vocab = pickle.load(infile)
+# Length of the vocabulary in StringLookup Layer
 
 ids_from_chars = tf.keras.layers.StringLookup(
     vocabulary=list(vocab), mask_token=None)
@@ -81,19 +79,15 @@ chars = chars_from_ids(ids)
 
 tf.strings.reduce_join(chars, axis=-1).numpy()
 
-
 all_ids = ids_from_chars(tf.strings.unicode_split(text, 'UTF-8'))
 ids_dataset = tf.data.Dataset.from_tensor_slices(all_ids)
-
 
 seq_length = 100
 
 sequences = ids_dataset.batch(seq_length + 1, drop_remainder=True)
 dataset = sequences.map(split_input_target)
 
-
 BATCH_SIZE = 64
-
 
 # Buffer size to shuffle the dataset
 # (TF data is designed to work with possibly infinite sequences,
@@ -107,8 +101,8 @@ dataset = (
     .batch(BATCH_SIZE, drop_remainder=True)
     .prefetch(tf.data.AUTOTUNE)
 )
-# Length of the vocabulary in StringLookup Layer
-vocab_size = len(ids_from_chars.get_vocabulary())
+
+vocab_size = len(vocab)
 
 # The embedding dimension
 embedding_dim = 256
@@ -151,7 +145,6 @@ EPOCHS = 20
 
 history = model.fit(dataset, epochs=EPOCHS, callbacks=[checkpoint_callback])
 
-
 stepper = Step(model, chars_from_ids, ids_from_chars)
 
 start = time.time()
@@ -166,7 +159,5 @@ for n in range(1000):
 result = tf.strings.join(result)
 end = time.time()
 
-print(result[0].numpy().decode('utf-8'), '\n\n' + '_'*80)
+print(result[0].numpy().decode('utf-8'), '\n\n' + '_' * 80)
 print('\nRun time:', end - start)
-
-
